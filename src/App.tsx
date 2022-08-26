@@ -1,24 +1,299 @@
 import React from 'react';
-import logo from './logo.svg';
-import './App.css';
+import {
+  Navigate,
+  NavLink,
+  Outlet,
+  Route,
+  Routes,
+  useNavigate,
+} from 'react-router-dom';
+import {
+  HubConnection,
+  HubConnectionBuilder,
+  HubConnectionState,
+} from '@microsoft/signalr';
+import Chat from './components/Chat';
+import UserForm from './components/UserForm';
+import {
+  Interaction,
+  User,
+  PublicKeyInteraction,
+  Dict,
+  MessageInteraction,
+} from './interfaces';
+import { servicesConfig } from './utils/config';
 
-function App() {
+export type AppProps = {};
+
+function App({}: AppProps) {
+  const [year] = React.useState(new Date().getFullYear());
+  const [connection, setConnection] = React.useState<HubConnection>();
+  const [users, setUsers] = React.useState<Dict<User>>({});
+  const [user, setUser] = React.useState('');
+
+  const [publicKey, setPublicKey] = React.useState('');
+  const [privateKey, setPrivateKey] = React.useState<CryptoKey>();
+
+  const navigate = useNavigate();
+
+  React.useEffect(() => {
+    (async () => {
+      console.log('generating keys');
+      try {
+        const key = await window.crypto.subtle.generateKey(
+          {
+            name: 'RSA-OAEP',
+            modulusLength: 2048,
+            publicExponent: new Uint8Array([0x01, 0x00, 0x01]),
+            hash: { name: 'SHA-256' },
+          },
+          true,
+          ['encrypt', 'decrypt']
+        );
+        const keyData = JSON.stringify(
+          await window.crypto.subtle.exportKey('jwk', key.publicKey)
+        );
+        setPublicKey(keyData);
+        setPrivateKey(key.privateKey);
+        console.log('   - public', keyData);
+        console.log(
+          '   - private',
+          JSON.stringify(
+            await window.crypto.subtle.exportKey('jwk', key.privateKey)
+          )
+        );
+      } catch (err) {
+        console.error(err);
+      }
+    })();
+
+    const newConnection = new HubConnectionBuilder()
+      .withUrl(servicesConfig.chathub)
+      .withAutomaticReconnect()
+      .build();
+
+    setConnection(newConnection);
+  }, []);
+
+  const onListUsers = (usernames: Array<string>) => {
+    console.log('usernames', usernames);
+    console.log('users', users);
+    const updated = usernames.reduce(
+      (response, name) => ({
+        ...response,
+        [name]: {
+          name,
+          picture: getPic(name),
+          messages: users[name]?.messages || [],
+        },
+      }),
+      {} as Dict<User>
+    );
+    console.log('updated users', updated);
+    setUsers(updated);
+  };
+
+  const onRequestedPublicKey = async (interaction: Interaction) => {
+    console.log('RequestedPublicKey', interaction, user || 'nulo');
+    await connection!.send('SendPublicKey', interaction.fromUser, publicKey);
+  };
+
+  const onReceivedPublicKey = (interaction: PublicKeyInteraction) => {
+    console.log('ReceivedPublicKey', interaction);
+    (async () => {
+      try {
+        const key = JSON.parse(interaction.publicKey) as JsonWebKey;
+        console.log('key', key);
+        const importedKey = await window.crypto.subtle.importKey(
+          'jwk',
+          key,
+          {
+            name: 'RSA-OAEP',
+            hash: { name: 'SHA-256' },
+          },
+          false,
+          ['encrypt']
+        );
+
+        setUsers((_users) => ({
+          ..._users,
+          [interaction.fromUser]: {
+            ..._users[interaction.fromUser],
+            publicKey: importedKey,
+          },
+        }));
+      } catch (error) {
+        console.error(error);
+      }
+    })();
+  };
+
+  const onReceivedMessage = (interaction: MessageInteraction) => {
+    (async () => {
+      try {
+        console.log('users', users);
+        const message = await window.crypto.subtle.decrypt(
+          {
+            name: 'RSA-OAEP',
+          },
+          privateKey!,
+          Uint8Array.from(interaction.message)
+        );
+        const text = new TextDecoder().decode(message);
+        const updated = {
+          ...users,
+          [interaction.fromUser]: {
+            ...users[interaction.fromUser] || { messages: [] },
+            messages: [
+              ...users[interaction.fromUser].messages,
+              {
+                date: new Date(),
+                reply: false,
+                text,
+              },
+            ],
+          },
+        };
+        setUsers(updated);
+        console.log('updated: ', updated)
+      } catch (error) {
+        console.log(error);
+      }
+    })();
+  };
+
+  React.useEffect(() => {
+    if (connection && user && ![HubConnectionState.Connected,  HubConnectionState.Connecting].includes(connection.state)) {
+      connection
+        .start()
+        .then(() => {
+          console.log('Connected!');
+          connection.on('ListUsers', onListUsers);
+          connection.on('RequestedPublicKey', onRequestedPublicKey);
+          connection.on('ReceivedPublicKey', onReceivedPublicKey);
+          connection.on('ReceivedMessage', onReceivedMessage);
+          connection.send('Init', user);
+        })
+        .catch((e) => console.log('Connection failed: ', e));
+
+      return () => {
+        connection.off('ListUsers');
+        connection.off('RequestedPublicKey');
+        connection.off('ReceivedPublicKey');
+        connection.off('ReceivedMessage');
+      };
+    }
+  }, [connection, user, users]);
+
+  const sendMessageHandler = async (toUser: string, message: string) => {
+    if (connection?.state === HubConnectionState.Connected) {
+      try {
+        if (typeof users[toUser].publicKey === 'undefined') {
+          alert('Connection not secured yet.');
+        }
+        const data = await window.crypto.subtle.encrypt(
+          {
+            name: 'RSA-OAEP',
+          },
+          users[toUser].publicKey!,
+          new TextEncoder().encode(message)
+        );
+        await connection.send('SendMessage', toUser, Array.from(new Uint8Array(data)));
+        setUsers((_users) => ({
+          ..._users,
+          [toUser]: {
+            ..._users[toUser],
+            messages: [
+              ..._users[toUser].messages,
+              {
+                date: new Date(),
+                reply: true,
+                text: message,
+              },
+            ],
+          },
+        }));
+      } catch (e) {
+        console.log(e);
+      }
+    } else {
+      alert('No connection to server yet.');
+    }
+  };
+
+  const startConversationHandler = async (toUser: string) => {
+    if (connection?.state === HubConnectionState.Connected) {
+      try {
+        await connection.send('StartConversation', toUser);
+      } catch (e) {
+        console.log(e);
+      }
+    } else {
+      alert('No connection to server yet.');
+    }
+  };
+
+  const getPic = (name: string) => `${servicesConfig.avatars}/${name.toLowerCase()}.png`;
+
+  const isNavigationActiveClass = ({ isActive }: { isActive: boolean }) =>
+    `app-navigation-item ${isActive ? 'selected' : ''}`;
+
+  const onSetUserHandler = async (user: string) => {
+    setUser(user);
+  };
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
+    <div className='app'>
+      <header>
+        <h2>Welcome {user ? ` ${user}` : ''} to the live chat!</h2>
       </header>
+      <main className='app-main'>
+        <Routes>
+          <Route path='/' element={<UserForm onSetUser={onSetUserHandler} />} />
+          <Route
+            path='/rooms'
+            element={
+              <React.Fragment>
+                {!user && <Navigate to='/' />}
+                <div className='app-navigation-items'>
+                  {Object.keys(users)
+                    .filter((u) => u !== user)
+                    .map((name) => (
+                      <NavLink
+                        key={name}
+                        className={isNavigationActiveClass}
+                        to={`/rooms/room/${name}`}
+                      >
+                        <img
+                          className='profile-pic'
+                          src={users[name].picture}
+                          alt={`${name} profile pic`}
+                        />{' '}
+                        {name}
+                      </NavLink>
+                    ))}
+                </div>
+                <div className='app-navigation-content'>
+                  <Outlet />
+                </div>
+              </React.Fragment>
+            }
+          />
+          <Route
+            path='rooms/room/:user'
+            element={
+              <Chat
+                users={users}
+                sendMessageHandler={sendMessageHandler}
+                startConversationHandler={startConversationHandler}
+              />
+            }
+          />
+        </Routes>
+      </main>
+      <footer>
+        <small>&copy; {year} Juan Sebastián Montoya. All Rights Reserved</small>
+      </footer>
     </div>
   );
 }
