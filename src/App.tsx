@@ -5,7 +5,7 @@ import {
   Outlet,
   Route,
   Routes,
-  useNavigate,
+  // useNavigate,
 } from 'react-router-dom';
 import {
   HubConnection,
@@ -25,7 +25,7 @@ import { servicesConfig } from './utils/config';
 
 export type AppProps = {};
 
-function App({}: AppProps) {
+function App(_props: AppProps) {
   const [year] = React.useState(new Date().getFullYear());
   const [connection, setConnection] = React.useState<HubConnection>();
   const [users, setUsers] = React.useState<Dict<User>>({});
@@ -34,11 +34,10 @@ function App({}: AppProps) {
   const [publicKey, setPublicKey] = React.useState('');
   const [privateKey, setPrivateKey] = React.useState<CryptoKey>();
 
-  const navigate = useNavigate();
+  // const navigate = useNavigate();
 
   React.useEffect(() => {
     (async () => {
-      console.log('generating keys');
       try {
         const key = await window.crypto.subtle.generateKey(
           {
@@ -55,13 +54,6 @@ function App({}: AppProps) {
         );
         setPublicKey(keyData);
         setPrivateKey(key.privateKey);
-        console.log('   - public', keyData);
-        console.log(
-          '   - private',
-          JSON.stringify(
-            await window.crypto.subtle.exportKey('jwk', key.privateKey)
-          )
-        );
       } catch (err) {
         console.error(err);
       }
@@ -75,32 +67,38 @@ function App({}: AppProps) {
     setConnection(newConnection);
   }, []);
 
-  const onListUsers = (usernames: Array<string>) => {
-    console.log('usernames', usernames);
-    console.log('users', users);
-    const updated = usernames.reduce(
-      (response, name) => ({
-        ...response,
-        [name]: {
-          name,
-          picture: getPic(name),
-          messages: users[name]?.messages || [],
-        },
-      }),
-      {} as Dict<User>
-    );
-    console.log('updated users', updated);
-    setUsers(updated);
-  };
+  const onListUsers = React.useCallback(
+    (usernames: Array<string>) => {
+      console.log('usernames', usernames);
+      console.log('users', users);
+      const updated = usernames.reduce(
+        (response, name) => ({
+          ...response,
+          [name]: {
+            name,
+            picture: getPic(name),
+            messages: users[name]?.messages || [],
+          },
+        }),
+        {} as Dict<User>
+      );
+      console.log('updated users', updated);
+      setUsers(updated);
+    },
+    [users, setUsers]
+  );
 
-  const onRequestedPublicKey = async (interaction: Interaction) => {
-    console.log('RequestedPublicKey', interaction, user || 'nulo');
-    await connection!.send('SendPublicKey', interaction.fromUser, publicKey);
-  };
+  const onRequestedPublicKey = React.useCallback(
+    async (interaction: Interaction) => {
+      console.log('RequestedPublicKey', interaction, user || 'nulo');
+      await connection!.send('SendPublicKey', interaction.fromUser, publicKey);
+    },
+    [user, publicKey, connection]
+  );
 
-  const onReceivedPublicKey = (interaction: PublicKeyInteraction) => {
-    console.log('ReceivedPublicKey', interaction);
-    (async () => {
+  const onReceivedPublicKey = React.useCallback(
+    async (interaction: PublicKeyInteraction) => {
+      console.log('ReceivedPublicKey', interaction);
       try {
         const key = JSON.parse(interaction.publicKey) as JsonWebKey;
         console.log('key', key);
@@ -125,11 +123,12 @@ function App({}: AppProps) {
       } catch (error) {
         console.error(error);
       }
-    })();
-  };
+    },
+    [setUsers]
+  );
 
-  const onReceivedMessage = (interaction: MessageInteraction) => {
-    (async () => {
+  const onReceivedMessage = React.useCallback(
+    async (interaction: MessageInteraction) => {
       try {
         console.log('users', users);
         const message = await window.crypto.subtle.decrypt(
@@ -143,7 +142,7 @@ function App({}: AppProps) {
         const updated = {
           ...users,
           [interaction.fromUser]: {
-            ...users[interaction.fromUser] || { messages: [] },
+            ...(users[interaction.fromUser] || { messages: [] }),
             messages: [
               ...users[interaction.fromUser].messages,
               {
@@ -155,35 +154,53 @@ function App({}: AppProps) {
           },
         };
         setUsers(updated);
-        console.log('updated: ', updated)
+        console.log('updated: ', updated);
       } catch (error) {
         console.log(error);
       }
-    })();
-  };
+    },
+    [users, privateKey, setUsers]
+  );
 
   React.useEffect(() => {
-    if (connection && user && ![HubConnectionState.Connected,  HubConnectionState.Connecting].includes(connection.state)) {
-      connection
-        .start()
-        .then(() => {
-          console.log('Connected!');
-          connection.on('ListUsers', onListUsers);
-          connection.on('RequestedPublicKey', onRequestedPublicKey);
-          connection.on('ReceivedPublicKey', onReceivedPublicKey);
-          connection.on('ReceivedMessage', onReceivedMessage);
-          connection.send('Init', user);
-        })
-        .catch((e) => console.log('Connection failed: ', e));
+    if (connection && user) {
+      if (connection.state !== HubConnectionState.Disconnected) {
+        console.log('state: ', connection.state);
+        connection.on('ListUsers', onListUsers);
+        connection.on('RequestedPublicKey', onRequestedPublicKey);
+        connection.on('ReceivedPublicKey', onReceivedPublicKey);
+        connection.on('ReceivedMessage', onReceivedMessage);
+      } else {
+        console.log('Going to init!', connection.state);
+        connection
+          .start()
+          .then(() => {
+            console.log('Connected!');
+            connection.on('ListUsers', onListUsers);
+            connection.on('RequestedPublicKey', onRequestedPublicKey);
+            connection.on('ReceivedPublicKey', onReceivedPublicKey);
+            connection.on('ReceivedMessage', onReceivedMessage);
+            connection.send('Init', user);
+          })
+          .catch((e) => console.log('Connection failed: ', e));
+      }
 
       return () => {
+        console.log('offing');
         connection.off('ListUsers');
         connection.off('RequestedPublicKey');
         connection.off('ReceivedPublicKey');
         connection.off('ReceivedMessage');
       };
     }
-  }, [connection, user, users]);
+  }, [
+    connection,
+    user,
+    onListUsers,
+    onRequestedPublicKey,
+    onReceivedPublicKey,
+    onReceivedMessage,
+  ]);
 
   const sendMessageHandler = async (toUser: string, message: string) => {
     if (connection?.state === HubConnectionState.Connected) {
@@ -198,7 +215,11 @@ function App({}: AppProps) {
           users[toUser].publicKey!,
           new TextEncoder().encode(message)
         );
-        await connection.send('SendMessage', toUser, Array.from(new Uint8Array(data)));
+        await connection.send(
+          'SendMessage',
+          toUser,
+          Array.from(new Uint8Array(data))
+        );
         setUsers((_users) => ({
           ..._users,
           [toUser]: {
@@ -233,7 +254,8 @@ function App({}: AppProps) {
     }
   };
 
-  const getPic = (name: string) => `${servicesConfig.avatars}/${name.toLowerCase()}.png`;
+  const getPic = (name: string) =>
+    `${servicesConfig.avatars}/20/${name.toLowerCase()}.png`;
 
   const isNavigationActiveClass = ({ isActive }: { isActive: boolean }) =>
     `app-navigation-item ${isActive ? 'selected' : ''}`;

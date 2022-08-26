@@ -5,5 +5,5 @@ export interface ServicesConfig {
 
 export const servicesConfig: ServicesConfig = {
     chathub: 'https://localhost:7051/chat',
-    avatars: 'https://avatars.jusemon.com/50',
+    avatars: 'https://avatars.jusemon.com',
 };

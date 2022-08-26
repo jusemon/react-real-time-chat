@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { IoMdSend } from 'react-icons/io';
 import Message from './Message';
 import { Dict, User } from '../interfaces';
+import { servicesConfig } from '../utils/config';
 
 export type ChatProps = {
   users: Dict<User>;
@@ -16,25 +17,35 @@ export default function Chat({
   startConversationHandler,
 }: ChatProps) {
   const { user } = useParams();
-  const [messages] = React.useState(users[user || '']?.messages);
   const [message, setMessage] = React.useState('');
 
   React.useEffect(() => {
-    console.log('start Conversation', user)
+    console.log('start Conversation', user);
     if (user) {
       startConversationHandler(user);
     }
-  }, [user]);
+  }, [user, startConversationHandler]);
 
   const onSendMessageClick = async () => {
+    if (message.length === 0) {
+      return;
+    }
     await sendMessageHandler(user!, message);
+    setMessage('');
   };
 
+  const getPic = (name: string) =>
+    `${servicesConfig.avatars}/20/${name.toLowerCase()}.png`;
+
   return (
-    <div>
+    <div className='chat'>
+      <div className='profile'>
+        <img className='profile-pic' src={getPic(user!)} alt='' /> {user}
+      </div>
       <div className='messages'>
-        {messages &&
-          messages.map((message, index) => (
+        {user &&
+          users[user].messages &&
+          users[user].messages.map((message, index) => (
             <Message key={index} {...message} />
           ))}
       </div>
