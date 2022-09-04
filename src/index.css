@@ -19,12 +19,71 @@ code {
 }
 
 .app-main {
+  display: flex;
   min-height: calc(100vh - 115px);
+  font-size: calc(10px + 2vmin);
+}
+
+.app-navigation-content {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
+  width: 100%;
+}
+
+.app-navigation-items {
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  background-color: #5c5c5c;
+  padding-top: 5px;
+  padding-right: 15px;
+  border-top-right-radius: 10px;
+  border-bottom-right-radius: 10px;
+}
+
+.app-navigation-item {
+  text-decoration: none;
+  color: white;
+  background-color: gray;
+  width: 100%;
+  padding: 5px;
+  margin-bottom: 2px;
+  border-top-right-radius: 10px;
+  border-bottom-right-radius: 10px;
+  display: flex;
+  align-items: center;
+}
+
+.app-navigation-item.selected {
+  background-color: #3b3b3b;
+}
+
+.user-form {
+  display: flex;
+  flex-direction: column;
+  width: 300px;
+  margin-left: calc(50% - 150px);
+  padding-top: calc(50vh - 200px);
+}
+
+.user-form button {
+  background-color: #484747;
+  color: white;
+  outline: none;
+  border: 1px solid transparent;
+  font-size: 1.2rem;
+  border-bottom-left-radius: 10px;
+  border-bottom-right-radius: 10px;
+}
+
+.user-form input#name {
+  font-size: 1.2rem;
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+  border: 1px solid transparent;
+  margin-top: 1rem;
 }
 
 .messages {
@@ -41,21 +100,21 @@ code {
 }
 
 .message-form {
-    background-color: #444444;
-    padding: 5px;
-    border-bottom-left-radius: 10px;
-    border-bottom-right-radius: 10px;
-    padding-top: 13px;
-    top: -7px;
-    position: relative;
-    display: flex;
+  background-color: #444444;
+  padding: 5px;
+  border-bottom-left-radius: 10px;
+  border-bottom-right-radius: 10px;
+  padding-top: 13px;
+  top: -7px;
+  position: relative;
+  display: flex;
 }
 
 input.form-input {
-    width: calc(100% - 50px);
-    border-radius: 10px;
-    outline: none;
-    border: 1px solid transparent;
+  width: calc(100% - 50px);
+  border-radius: 10px;
+  outline: none;
+  border: 1px solid transparent;
 }
 
 .message {

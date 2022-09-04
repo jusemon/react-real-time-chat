@@ -23,9 +23,7 @@ import {
 } from './interfaces';
 import { servicesConfig } from './utils/config';
 
-export type AppProps = {};
-
-function App(_props: AppProps) {
+function App() {
   const [year] = React.useState(new Date().getFullYear());
   const [connection, setConnection] = React.useState<HubConnection>();
   const [users, setUsers] = React.useState<Dict<User>>({});
@@ -165,7 +163,6 @@ function App(_props: AppProps) {
   React.useEffect(() => {
     if (connection && user) {
       if (connection.state !== HubConnectionState.Disconnected) {
-        console.log('state: ', connection.state);
         connection.on('ListUsers', onListUsers);
         connection.on('RequestedPublicKey', onRequestedPublicKey);
         connection.on('ReceivedPublicKey', onReceivedPublicKey);
@@ -175,7 +172,6 @@ function App(_props: AppProps) {
         connection
           .start()
           .then(() => {
-            console.log('Connected!');
             connection.on('ListUsers', onListUsers);
             connection.on('RequestedPublicKey', onRequestedPublicKey);
             connection.on('ReceivedPublicKey', onReceivedPublicKey);
@@ -186,7 +182,6 @@ function App(_props: AppProps) {
       }
 
       return () => {
-        console.log('offing');
         connection.off('ListUsers');
         connection.off('RequestedPublicKey');
         connection.off('ReceivedPublicKey');
@@ -202,7 +197,7 @@ function App(_props: AppProps) {
     onReceivedMessage,
   ]);
 
-  const sendMessageHandler = async (toUser: string, message: string) => {
+  const sendMessageHandler = React.useCallback(async (toUser: string, message: string) => {
     if (connection?.state === HubConnectionState.Connected) {
       try {
         if (typeof users[toUser].publicKey === 'undefined') {
@@ -240,19 +235,19 @@ function App(_props: AppProps) {
     } else {
       alert('No connection to server yet.');
     }
-  };
+  }, [connection, users, setUsers]);
 
-  const startConversationHandler = async (toUser: string) => {
+  const startConversationHandler = React.useCallback(async (toUser: string) => {
     if (connection?.state === HubConnectionState.Connected) {
       try {
         await connection.send('StartConversation', toUser);
       } catch (e) {
-        console.log(e);
+        console.error(e);
       }
     } else {
       alert('No connection to server yet.');
     }
-  };
+  }, [connection]);
 
   const getPic = (name: string) =>
     `${servicesConfig.avatars}/20/${name.toLowerCase()}.png`;
@@ -300,17 +295,18 @@ function App(_props: AppProps) {
                 </div>
               </React.Fragment>
             }
-          />
-          <Route
-            path='rooms/room/:user'
-            element={
-              <Chat
-                users={users}
-                sendMessageHandler={sendMessageHandler}
-                startConversationHandler={startConversationHandler}
-              />
-            }
-          />
+          >
+            <Route
+              path='/rooms/room/:user'
+              element={
+                <Chat
+                  users={users}
+                  sendMessageHandler={sendMessageHandler}
+                  startConversationHandler={startConversationHandler}
+                />
+              }
+            />
+          </Route>
         </Routes>
       </main>
       <footer>
