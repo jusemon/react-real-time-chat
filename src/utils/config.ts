@@ -4,6 +4,6 @@ export interface ServicesConfig {
 }
 
 export const servicesConfig: ServicesConfig = {
-    chathub: 'https://real-time-chat-jsm.herokuapp.com/chat',
+    chathub: 'https://real-time-chat-jsm.onrender.com/chat',
     avatars: 'https://avatars.jusemon.com',
 };
