@@ -197,57 +197,63 @@ function App() {
     onReceivedMessage,
   ]);
 
-  const sendMessageHandler = React.useCallback(async (toUser: string, message: string) => {
-    if (connection?.state === HubConnectionState.Connected) {
-      try {
-        if (typeof users[toUser].publicKey === 'undefined') {
-          alert('Connection not secured yet.');
+  const sendMessageHandler = React.useCallback(
+    async (toUser: string, message: string) => {
+      if (connection?.state === HubConnectionState.Connected) {
+        try {
+          if (typeof users[toUser].publicKey === 'undefined') {
+            alert('Connection not secured yet.');
+          }
+          const data = await window.crypto.subtle.encrypt(
+            {
+              name: 'RSA-OAEP',
+            },
+            users[toUser].publicKey!,
+            new TextEncoder().encode(message)
+          );
+          await connection.send(
+            'SendMessage',
+            toUser,
+            Array.from(new Uint8Array(data))
+          );
+          setUsers((_users) => ({
+            ..._users,
+            [toUser]: {
+              ..._users[toUser],
+              messages: [
+                ..._users[toUser].messages,
+                {
+                  date: new Date(),
+                  reply: true,
+                  text: message,
+                },
+              ],
+            },
+          }));
+        } catch (e) {
+          console.log(e);
         }
-        const data = await window.crypto.subtle.encrypt(
-          {
-            name: 'RSA-OAEP',
-          },
-          users[toUser].publicKey!,
-          new TextEncoder().encode(message)
-        );
-        await connection.send(
-          'SendMessage',
-          toUser,
-          Array.from(new Uint8Array(data))
-        );
-        setUsers((_users) => ({
-          ..._users,
-          [toUser]: {
-            ..._users[toUser],
-            messages: [
-              ..._users[toUser].messages,
-              {
-                date: new Date(),
-                reply: true,
-                text: message,
-              },
-            ],
-          },
-        }));
-      } catch (e) {
-        console.log(e);
+      } else {
+        alert('No connection to server yet.');
       }
-    } else {
-      alert('No connection to server yet.');
-    }
-  }, [connection, users, setUsers]);
+    },
+    [connection, users, setUsers]
+  );
 
-  const startConversationHandler = React.useCallback(async (toUser: string) => {
-    if (connection?.state === HubConnectionState.Connected) {
-      try {
-        await connection.send('StartConversation', toUser);
-      } catch (e) {
-        console.error(e);
+  const startConversationHandler = React.useCallback(
+    async (toUser: string) => {
+      if (connection?.state === HubConnectionState.Connected) {
+        try {
+          await connection.send('StartConversation', toUser);
+        } catch (e) {
+          console.error(e);
+        }
+      } else {
+        alert('No connection to server yet.');
       }
-    } else {
-      alert('No connection to server yet.');
-    }
-  }, [connection]);
+    },
+    [connection]
+  );
 
   const getPic = (name: string) =>
     `${servicesConfig.avatars}/20/${name.toLowerCase()}.png`;
