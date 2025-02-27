@@ -1,29 +1,25 @@
-export interface Dict<T> {
-    [key: string]: T
-}
-
-export interface Message {
+export type Message = {
   text: string;
   date: Date;
   reply: boolean;
-}
+};
 
-export interface User {
+export type User = {
   name: string;
   picture: string;
   messages: Array<Message>;
-  publicKey?: CryptoKey,
-}
+  publicKey?: CryptoKey;
+};
 
-export interface Interaction {
+export type Interaction = {
   fromUser: string;
   toUser: string;
-}
+};
 
-export interface MessageInteraction extends Interaction {
+export type MessageInteraction = Interaction & {
   message: Array<number>;
-}
+};
 
-export interface PublicKeyInteraction extends Interaction {
+export type PublicKeyInteraction = Interaction & {
   publicKey: string;
-}
+};
