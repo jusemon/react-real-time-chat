@@ -24,7 +24,7 @@ export default function UserForm({ user: _user, onSetUser }: UserFormProps) {
         value={user}
         onChange={({ target: { value } }) => setUser(value)}
       />
-      <button onClick={()=> onNextClick()}>Next</button>
+      <button onClick={() => onNextClick()}>Next</button>
     </div>
   );
 }
