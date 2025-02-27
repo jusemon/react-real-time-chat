@@ -12,8 +12,8 @@ jobs:
     if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     env:
-      VITE_API_URL: https://react-chat-jsm.web.app
-      VITE_AVATARS_API_URL: https://avatars.jusemon.com
+      VITE_API_URL: ${{ vars.VITE_API_URL }}
+      VITE_AVATARS_API_URL: ${{ vars.VITE_AVATARS_API_URL }}
     steps:
       - uses: actions/checkout@v2
       - run: npm ci && npm run build
